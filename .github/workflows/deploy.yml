@@ -31,8 +31,8 @@ jobs:
         with:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY }}
           aws_secret_key: ${{ secrets.AWS_SECRET_KEY }}
-          application_name: multi
-          environment_name: Multi-env
+          application_name: multid
+          environment_name: Multid-env 
           existing_bucket_name: elasticbeanstalk-ap-south-1-438601906527
           region: ap-south-1
           version_label: ${{ github.sha }}
