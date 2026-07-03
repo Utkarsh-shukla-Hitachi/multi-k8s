@@ -1,0 +1,61 @@
+name: Deploy MultiDocker
+on:
+  push:
+    branches:
+      - master # check your repo, your default branch might be master!
+ 
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      - name: Run Client Tests
+        run: |
+          docker build -t utkarshhitachi/react-test -f ./client/Dockerfile.dev ./client
+          docker run --rm -e CI=true utkarshhitachi/react-test npm test -- --watchAll=false
+      - name : Build the Images
+        run: |
+          docker build -t utkarshhitachi/multi-client ./client
+          docker build -t utkarshhitachi/multi-server ./server
+          docker build -t utkarshhitachi/multi-worker ./worker
+      - name: Push the Images to Docker hub
+        run: |
+          docker push utkarshhitachi/multi-client
+          docker push utkarshhitachi/multi-server 
+          docker push utkarshhitachi/multi-worker
+          
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v2.0
+        with:
+          version: 'v1.24.0' 
+        id: install
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+      - name: Update kube config
+        run: aws eks update-kubeconfig --name multidocker-cluster --region us-east-2
+    
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f ./k8s/
+      - name: Restart Deployments
+        run: |
+          kubectl rollout restart deployment/client-deployment
+          kubectl rollout restart deployment/server-deployment
+          kubectl rollout restart deployment/worker-deployment
+
+      - name: Wait for Rollout
+        run: |
+          kubectl rollout status deployment/client-deployment
+          kubectl rollout status deployment/server-deployment
+          kubectl rollout status deployment/worker-deployment
+
+      - name: Verify Deployment
+        run: |
+          kubectl get pods
+          kubectl get services
+          kubectl get ingress
